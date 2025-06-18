@@ -1,103 +1,350 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import React, { useState, useEffect, useRef } from "react";
+// import { useTheme } from "next-themes"; // Tidak lagi digunakan langsung di sini
+// import { PlusCircle, Menu, Paperclip, Send, Sun, Moon, X } from "lucide-react"; // Tidak lagi digunakan langsung di sini
+// Menggunakan path alias jika dikonfigurasi, atau path relatif
+
+import {
+  ChatHeader,
+  ChatSidebar,
+  ChatMessageList,
+  ChatInputBar,
+} from "@/components/chat"; // Menggunakan path alias jika dikonfigurasi, atau path relatif
+import { ConfirmationModal } from "@/components/ui/ConfirmationModal";
+
+interface ChatMessage {
+  id: string;
+  text: string;
+  sender: "user" | "ai";
+  timestamp: Date;
+}
+
+interface ChatSession {
+  id: string;
+  name: string;
+  messages: ChatMessage[];
+  pinnedMessageIds?: string[]; // ID pesan yang disematkan (opsional)
+  createdAt: Date;
+}
+
+export default function ChatPage() {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Ubah nilai awal menjadi false
+  const [message, setMessage] = useState("");
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [sessionToDelete, setSessionToDelete] = useState<ChatSession | null>(
+    null
+  );
+  const [isConfirmationModalOpen, setIsConfirmationModalOpen] = useState(false);
+  const [isSending, setIsSending] = useState(false); // Untuk loading state
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const appTitle = "AreefKn AI";
+
+  useEffect(() => {
+    // Auto-scroll ke pesan terbaru
+    chatContainerRef.current?.scrollTo(
+      0,
+      chatContainerRef.current.scrollHeight
+    );
+  }, [sessions, activeSessionId]); // Bergantung pada sesi dan sesi aktif
+
+  // --- Logika untuk memuat dan menyimpan sesi dari localStorage ---
+  useEffect(() => {
+    const storedSessions = localStorage.getItem("chatSessions_areefkn_v2");
+    if (storedSessions) {
+      const parsedSessions: ChatSession[] = JSON.parse(storedSessions).map(
+        (session: any) => ({
+          ...session,
+          createdAt: new Date(session.createdAt),
+          messages: session.messages.map((msg: any) => ({
+            ...msg,
+            timestamp: new Date(msg.timestamp),
+          })),
+        })
+      );
+      setSessions(parsedSessions);
+      if (parsedSessions.length > 0) {
+        const lastActiveSessionId = localStorage.getItem(
+          "lastActiveSessionId_areefkn_v2"
+        );
+        setActiveSessionId(
+          lastActiveSessionId &&
+            parsedSessions.find((s) => s.id === lastActiveSessionId)
+            ? lastActiveSessionId
+            : parsedSessions[parsedSessions.length - 1].id
+        );
+      } else {
+        createNewSession();
+      }
+    } else {
+      createNewSession();
+    }
+  }, []);
+
+  useEffect(() => {
+    if (sessions.length > 0) {
+      localStorage.setItem("chatSessions_areefkn_v2", JSON.stringify(sessions));
+    }
+    if (activeSessionId) {
+      localStorage.setItem("lastActiveSessionId_areefkn_v2", activeSessionId);
+    }
+  }, [sessions, activeSessionId]);
+  // --- Akhir logika localStorage ---
+
+  const currentChatHistory =
+    sessions.find((s) => s.id === activeSessionId)?.messages || [];
+  const activeSessionName = sessions.find(
+    (s) => s.id === activeSessionId
+  )?.name;
+  const activeSession = sessions.find((s) => s.id === activeSessionId);
+
+  const pinnedMessages =
+    (activeSession?.pinnedMessageIds
+      ?.map((pinId) => currentChatHistory.find((msg) => msg.id === pinId))
+      .filter(Boolean) as ChatMessage[]) || [];
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <div className="flex h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100">
+      <ChatSidebar
+        isOpen={isSidebarOpen}
+        sessions={sessions}
+        activeSessionId={activeSessionId}
+        onNewChat={createNewSession}
+        onSelectSession={setActiveSessionId}
+        onDeleteSession={openDeleteConfirmationModal}
+        onRenameSession={handleRenameSession} // Add this line
+      />
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
+      {/* Main Content */}
+      <main className="flex flex-col flex-1 w-full h-screen min-w-0">
+        {" "}
+        {/* Tambahkan min-w-0 */}
+        <ChatHeader
+          isSidebarOpen={isSidebarOpen}
+          onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+          title={appTitle}
+        />
+        <ChatMessageList
+          messages={currentChatHistory}
+          isSending={isSending}
+          chatContainerRef={chatContainerRef}
+          activeSessionName={activeSessionName}
+          pinnedMessages={pinnedMessages}
+          onUnpinMessage={handleUnpinMessage}
+          onPinMessage={handlePinMessage}
+        />
+        <ChatInputBar
+          message={message}
+          onMessageChange={setMessage}
+          onSendMessage={handleSendMessage}
+          isSending={isSending}
+        />
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      {sessionToDelete && (
+        <ConfirmationModal
+          isOpen={isConfirmationModalOpen}
+          onClose={() => {
+            setIsConfirmationModalOpen(false);
+            setSessionToDelete(null);
+          }}
+          onConfirm={confirmDeleteSession}
+          title="Hapus Sesi Chat"
+          message={
+            <p>
+              Apakah Anda yakin ingin menghapus chat "
+              <strong>{sessionToDelete.name}</strong>"? Tindakan ini tidak dapat
+              dibatalkan.
+            </p>
+          }
+        />
+      )}
     </div>
   );
+
+  async function handleSendMessage() {
+    if (!message.trim()) return;
+
+    if (!activeSessionId) {
+      console.error("Tidak ada sesi aktif untuk mengirim pesan.");
+      // Mungkin tampilkan notifikasi ke pengguna
+      return;
+    }
+
+    const newUserMessage: ChatMessage = {
+      id: `user-${Date.now()}`,
+      text: message,
+      sender: "user",
+      timestamp: new Date(),
+    };
+
+    setSessions((prevSessions) =>
+      prevSessions.map((session) =>
+        session.id === activeSessionId
+          ? { ...session, messages: [...session.messages, newUserMessage] }
+          : session
+      )
+    );
+    setMessage("");
+    setIsSending(true);
+
+    // Mengambil beberapa pesan terakhir dari sesi aktif untuk konteks
+    // Anda bisa menyesuaikan jumlah pesan yang dikirim untuk konteks
+    const historyForContext = currentChatHistory
+      .slice(-10) // Ambil 10 pesan terakhir
+      .map((msg) => ({ sender: msg.sender, text: msg.text }));
+
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: newUserMessage.text,
+          history: historyForContext,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.details || errorData.error || "Gagal menghubungi AI"
+        );
+      }
+
+      const data = await response.json();
+      const aiMessage: ChatMessage = {
+        id: `ai-${Date.now()}`,
+        text: data.reply || "Maaf, saya tidak menerima respons yang valid.",
+        sender: "ai",
+        timestamp: new Date(),
+      };
+      setSessions((prevSessions) =>
+        prevSessions.map((session) =>
+          session.id === activeSessionId
+            ? { ...session, messages: [...session.messages, aiMessage] }
+            : session
+        )
+      );
+    } catch (error) {
+      console.error("Error saat mengirim pesan ke AI:", error);
+      const errorMessageText =
+        error instanceof Error && error.message
+          ? error.message
+          : "Maaf, terjadi kesalahan saat menghubungi AI. Silakan coba lagi.";
+      const errorMessage: ChatMessage = {
+        id: `error-${Date.now()}`,
+        text: errorMessageText,
+        sender: "ai",
+        timestamp: new Date(),
+      };
+      setSessions((prevSessions) =>
+        prevSessions.map((session) =>
+          session.id === activeSessionId
+            ? {
+                ...session,
+                messages: [...session.messages, errorMessage],
+              }
+            : session
+        )
+      );
+    } finally {
+      setIsSending(false);
+    }
+  }
+
+  function createNewSession() {
+    const newSessionId = `session-${Date.now()}`;
+    const newSession: ChatSession = {
+      id: newSessionId,
+      name: `Percakapan ${sessions.length + 1}`,
+      messages: [],
+      createdAt: new Date(),
+    };
+    setSessions((prev) => [...prev, newSession]);
+    setActiveSessionId(newSessionId);
+  }
+
+  function openDeleteConfirmationModal(sessionId: string) {
+    const session = sessions.find((s) => s.id === sessionId);
+    if (session) {
+      setSessionToDelete(session);
+      setIsConfirmationModalOpen(true);
+    }
+  }
+
+  function confirmDeleteSession() {
+    if (!sessionToDelete) return;
+
+    const sessionIdToDelete = sessionToDelete.id;
+
+    setSessions((prevSessions) =>
+      prevSessions.filter((session) => session.id !== sessionIdToDelete)
+    );
+
+    // Jika sesi yang aktif dihapus
+    if (activeSessionId === sessionIdToDelete) {
+      const remainingSessions = sessions.filter(
+        (session) => session.id !== sessionIdToDelete
+      );
+      if (remainingSessions.length > 0) {
+        // Atur sesi aktif ke sesi terbaru yang tersisa
+        setActiveSessionId(
+          remainingSessions.sort(
+            (a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)
+          )[0].id
+        );
+      } else {
+        // Jika tidak ada sesi tersisa, buat sesi baru
+        setActiveSessionId(null); // Reset dulu
+        createNewSession();
+      }
+    }
+    // localStorage akan otomatis diperbarui oleh useEffect yang sudah ada
+  }
+
+  function handleRenameSession(sessionId: string, newName: string) {
+    setSessions((prevSessions) =>
+      prevSessions.map((session) =>
+        session.id === sessionId
+          ? { ...session, name: newName.trim() }
+          : session
+      )
+    );
+    // localStorage akan otomatis diperbarui oleh useEffect yang sudah ada
+  }
+
+  function handlePinMessage(messageId: string) {
+    if (!activeSessionId) return;
+
+    setSessions((prevSessions) =>
+      prevSessions.map((session) => {
+        if (session.id === activeSessionId) {
+          const currentPinnedIds = session.pinnedMessageIds || [];
+          // Batasi jumlah pesan yang bisa disematkan, misal 3, dan yang baru disematkan muncul di atas
+          const newPinnedIds = [
+            messageId,
+            ...currentPinnedIds.filter((id) => id !== messageId),
+          ].slice(0, 3);
+          return { ...session, pinnedMessageIds: newPinnedIds };
+        }
+        return session;
+      })
+    );
+  }
+
+  function handleUnpinMessage(messageIdToUnpin: string) {
+    if (!activeSessionId) return;
+
+    setSessions((prevSessions) =>
+      prevSessions.map((session) => {
+        if (session.id === activeSessionId) {
+          const updatedPinnedIds = (session.pinnedMessageIds || []).filter(
+            (id) => id !== messageIdToUnpin
+          );
+          return { ...session, pinnedMessageIds: updatedPinnedIds };
+        }
+        return session;
+      })
+    );
+  }
 }
