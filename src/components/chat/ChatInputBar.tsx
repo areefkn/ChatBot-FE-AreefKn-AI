@@ -17,6 +17,7 @@ export function ChatInputBar({
   isSending,
 }: ChatInputBarProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null); // Tambahkan ref untuk input file
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -26,6 +27,7 @@ export function ChatInputBar({
       // Atur tinggi baru berdasarkan scrollHeight, dengan batas maksimum.
       // Nilai 128px (sekitar 5-6 baris) bisa disesuaikan.
       const maxHeight = 128; // dalam piksel
+      const minHeight = 26; // (1.625rem + 1.25rem) -15
       const newHeight = Math.min(textarea.scrollHeight, maxHeight);
       textarea.style.height = `${newHeight}px`;
     }
@@ -36,6 +38,17 @@ export function ChatInputBar({
       e.preventDefault();
       await onSendMessage();
     }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    // TODO: Implementasikan logika penanganan file di sini
+    console.log("File dipilih:", files);
+  };
+
+  const handleAttachClick = () => {
+    // Memicu klik pada input file yang tersembunyi
+    fileInputRef.current?.click();
   };
 
   return (
@@ -58,8 +71,20 @@ export function ChatInputBar({
             disabled={isSending}
             onKeyDown={handleKeyDown}
           />
+          {/* Input File (Tersembunyi Secara Visual) */}
+          {/* Pindahkan input file agar tidak menutupi textarea */}
+          <input
+            ref={fileInputRef} // Gunakan ref di sini
+            type="file"
+            multiple // Opsional: untuk mengizinkan banyak file
+            onChange={handleFileChange}
+            className="hidden" // Sembunyikan sepenuhnya
+            aria-label="Lampirkan file"
+            disabled={isSending}
+          />
           <button
-            className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1.5 text-slate-400 hover:text-indigo-500 dark:text-slate-300 dark:hover:text-indigo-400 focus:outline-none"
+            className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1.5 text-slate-400 hover:text-indigo-500 dark:text-slate-300 dark:hover:text-indigo-400 focus:outline-none z-20" // Tambahkan z-index jika perlu agar di atas textarea
+            onClick={handleAttachClick} // Panggil handleAttachClick saat tombol diklik
             aria-label="Lampirkan file"
             disabled={isSending}
           >

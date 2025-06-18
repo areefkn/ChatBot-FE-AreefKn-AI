@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { v4 as uuidv4 } from "uuid";
 // import { useTheme } from "next-themes"; // Tidak lagi digunakan langsung di sini
 // import { PlusCircle, Menu, Paperclip, Send, Sun, Moon, X } from "lucide-react"; // Tidak lagi digunakan langsung di sini
 // Menggunakan path alias jika dikonfigurasi, atau path relatif
@@ -9,28 +10,25 @@ import { ChatSidebar, ChatHeader } from "@/components/chat";
 import { ConfirmationModal } from "@/components/ui/ConfirmationModal";
 import { WelcomeScreen } from "@/components/page/WelcomeScreen"; // Impor komponen baru
 import { ActiveChatArea } from "@/components/page/ActiveChatArea"; // Impor komponen baru
-
-interface ChatMessage {
-  id: string;
-  text: string;
-  sender: "user" | "ai";
-  timestamp: Date;
-}
-
-interface ChatSession {
-  id: string;
-  name: string;
-  messages: ChatMessage[];
-  pinnedMessageIds?: string[]; // ID pesan yang disematkan (opsional)
-  createdAt: Date;
-  isPinned?: boolean; // Untuk status pin sesi di sidebar
-  lastMessagePreview?: string; // Untuk pratinjau pesan di sidebar
-}
+import { sendMessageToAI } from "@/services/chatService";
+import {
+  useChatSessions,
+  ChatMessage,
+  ChatSession,
+} from "@/hooks/useChatSessions"; // Impor hook dan tipe
 
 export default function ChatPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Ubah nilai awal menjadi false
   const [message, setMessage] = useState("");
-  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const {
+    sessions,
+    setSessions, // Digunakan untuk operasi pin/unpin pesan langsung
+    createNewSessionHook,
+    deleteSessionHook,
+    renameSessionHook,
+    togglePinSessionHook,
+    addMessageToSessionHook,
+  } = useChatSessions();
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [sessionToDelete, setSessionToDelete] = useState<ChatSession | null>(
     null
@@ -50,81 +48,38 @@ export default function ChatPage() {
     );
   }, [sessions, activeSessionId]); // Bergantung pada sesi dan sesi aktif
 
-  // --- Logika untuk memuat dan menyimpan sesi dari localStorage ---
+  // --- Logika untuk memuat ID sesi aktif terakhir ---
+  // Dijalankan setelah `useChatSessions` memuat `sessions`
   useEffect(() => {
-    const storedSessions = localStorage.getItem("chatSessions_areefkn_v2");
-    let initialSessionsLoaded = false;
-    if (storedSessions) {
-      try {
-        const parsedSessions: ChatSession[] = JSON.parse(storedSessions).map(
-          (session: any) => ({
-            ...session,
-            createdAt: new Date(session.createdAt),
-            isPinned: session.isPinned || false, // Tambahkan default value
-            messages: session.messages.map((msg: any) => ({
-              ...msg,
-              timestamp: new Date(msg.timestamp),
-            })),
-            // Buat lastMessagePreview saat memuat
-            lastMessagePreview:
-              session.messages.length > 0
-                ? session.messages[session.messages.length - 1].text.substring(
-                    0,
-                    40
-                  ) +
-                  (session.messages[session.messages.length - 1].text.length >
-                  40
-                    ? "..."
-                    : "")
-                : "Belum ada pesan",
-          })
-        );
-        setSessions(parsedSessions);
-        initialSessionsLoaded = true;
-
-        if (parsedSessions.length > 0) {
-          const lastActiveSessionId = localStorage.getItem(
-            "lastActiveSessionId_areefkn_v2"
-          );
-          setActiveSessionId(
-            lastActiveSessionId &&
-              parsedSessions.find((s) => s.id === lastActiveSessionId)
-              ? lastActiveSessionId
-              : parsedSessions[parsedSessions.length - 1].id
-          );
-        } else {
-          // Jika storedSessions ada tapi isinya kosong array, set activeSessionId ke null
-          setActiveSessionId(null);
-        }
-      } catch (error) {
-        console.error("Gagal memuat sesi dari localStorage:", error);
-        // Jika parsing gagal, perlakukan seperti tidak ada sesi
-        setSessions([]);
-        setActiveSessionId(null);
-        initialSessionsLoaded = true;
+    if (sessions.length > 0) {
+      const lastActiveSessionIdFromStorage = localStorage.getItem(
+        "lastActiveSessionId_areefkn_v2"
+      );
+      if (
+        lastActiveSessionIdFromStorage &&
+        sessions.find((s) => s.id === lastActiveSessionIdFromStorage)
+      ) {
+        setActiveSessionId(lastActiveSessionIdFromStorage);
+      } else {
+        // Default ke sesi terbaru jika tidak ada atau tidak valid
+        // Asumsi sesi sudah diurutkan atau ambil yang terakhir dari array yang ada
+        setActiveSessionId(sessions[sessions.length - 1].id);
       }
     } else {
-      // Jika tidak ada storedSessions sama sekali, set activeSessionId ke null
-      // dan pastikan tidak ada sesi yang dibuat secara otomatis
-      setSessions([]); // Pastikan sessions kosong
+      // Jika tidak ada sesi sama sekali setelah dimuat
       setActiveSessionId(null);
-      initialSessionsLoaded = true;
     }
-  }, []);
+  }, [sessions]); // Hanya bergantung pada `sessions` dari hook
 
+  // --- Logika untuk menyimpan ID sesi aktif terakhir ---
   useEffect(() => {
-    // Selalu simpan state sesi saat ini ke localStorage.
-    // Jika sessions kosong, localStorage akan menyimpan string "[]".
-    localStorage.setItem("chatSessions_areefkn_v2", JSON.stringify(sessions));
-
     if (activeSessionId) {
       localStorage.setItem("lastActiveSessionId_areefkn_v2", activeSessionId);
     } else {
-      // Jika tidak ada sesi aktif, hapus ID sesi aktif terakhir dari localStorage.
       localStorage.removeItem("lastActiveSessionId_areefkn_v2");
     }
-  }, [sessions, activeSessionId]);
-  // --- Akhir logika localStorage ---
+  }, [activeSessionId]);
+  // --- Akhir logika localStorage untuk activeSessionId ---
 
   const currentChatHistory =
     sessions.find((s) => s.id === activeSessionId)?.messages || [];
@@ -138,19 +93,212 @@ export default function ChatPage() {
       ?.map((pinId) => currentChatHistory.find((msg) => msg.id === pinId))
       .filter(Boolean) as ChatMessage[]) || [];
 
-  // Menyiapkan data sesi untuk Sidebar dengan properti yang dibutuhkan
+  // Menyiapkan data sesi untuk Sidebar
+  // lastMessagePreview sekarang seharusnya sudah dikelola oleh useChatSessions
   const sessionsForSidebar = sessions.map((session) => ({
     id: session.id,
     name: session.name,
     createdAt: session.createdAt,
     isPinned: session.isPinned || false,
-    lastMessagePreview:
-      session.lastMessagePreview ||
-      (session.messages.length > 0
-        ? session.messages[session.messages.length - 1].text.substring(0, 40) +
-          "..."
-        : "Belum ada pesan"),
+    lastMessagePreview: session.lastMessagePreview || "Belum ada pesan",
   }));
+
+  const handleSendMessage = useCallback(async () => {
+    if (!message.trim() || !activeSessionId) {
+      if (!activeSessionId) {
+        console.error("Tidak ada sesi aktif untuk mengirim pesan.");
+      }
+      return;
+    }
+
+    const userMessageText = message; // Simpan sebelum di-reset
+    const newUserMessage: ChatMessage = {
+      id: `user-${uuidv4()}`,
+      text: userMessageText,
+      sender: "user",
+      timestamp: new Date(),
+    };
+
+    addMessageToSessionHook(activeSessionId, newUserMessage);
+    setMessage("");
+    setIsSending(true);
+
+    requestAnimationFrame(() => {
+      chatContainerRef.current?.scrollTo(
+        0,
+        chatContainerRef.current.scrollHeight
+      );
+    });
+
+    const historyForContext = (
+      sessions.find((s) => s.id === activeSessionId)?.messages || []
+    )
+      .slice(-11, -1) // Ambil 10 pesan SEBELUM pesan pengguna baru
+      .map((msg) => ({ sender: msg.sender, text: msg.text }));
+
+    try {
+      const data = await sendMessageToAI(userMessageText, historyForContext);
+      const aiMessage: ChatMessage = {
+        id: `ai-${uuidv4()}`,
+        text: data.reply || "Maaf, saya tidak menerima respons yang valid.",
+        sender: "ai",
+        timestamp: new Date(),
+      };
+      addMessageToSessionHook(activeSessionId, aiMessage);
+    } catch (error) {
+      console.error("Error saat mengirim pesan ke AI:", error);
+      let errorMessageText =
+        "Maaf, terjadi kesalahan saat menghubungi AI. Silakan coba lagi.";
+      if (error instanceof Error) {
+        errorMessageText = error.message;
+      }
+      const errorMessage: ChatMessage = {
+        id: `err-${uuidv4()}`,
+        text: errorMessageText,
+        sender: "ai",
+        timestamp: new Date(),
+      };
+      addMessageToSessionHook(activeSessionId, errorMessage);
+    } finally {
+      setIsSending(false);
+      requestAnimationFrame(() => {
+        chatContainerRef.current?.scrollTo(
+          0,
+          chatContainerRef.current.scrollHeight
+        );
+      });
+    }
+  }, [
+    message,
+    activeSessionId,
+    addMessageToSessionHook,
+    sessions, // Untuk mengambil historyForContext
+    // chatContainerRef tidak perlu di dependency array useCallback jika hanya methodnya yg dipakai
+  ]);
+
+  const createNewSession = useCallback(() => {
+    const newSession = createNewSessionHook();
+    setActiveSessionId(newSession.id);
+  }, [createNewSessionHook, setActiveSessionId]);
+
+  const openDeleteConfirmationModal = useCallback(
+    (sessionId: string) => {
+      const session = sessions.find((s) => s.id === sessionId);
+      if (session) {
+        setSessionToDelete(session);
+        setIsConfirmationModalOpen(true);
+      }
+    },
+    [sessions]
+  );
+
+  const confirmDeleteSession = useCallback(() => {
+    if (!sessionToDelete) return;
+    const sessionIdToDelete = sessionToDelete.id;
+    deleteSessionHook(sessionIdToDelete);
+
+    if (activeSessionId === sessionIdToDelete) {
+      const remainingSessions = sessions.filter(
+        (s) => s.id !== sessionIdToDelete
+      );
+      if (remainingSessions.length > 0) {
+        setActiveSessionId(
+          remainingSessions.sort(
+            (a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)
+          )[0].id
+        );
+      } else {
+        setActiveSessionId(null);
+      }
+    }
+    setSessionToDelete(null);
+    setIsConfirmationModalOpen(false);
+  }, [
+    sessionToDelete,
+    deleteSessionHook,
+    activeSessionId,
+    sessions,
+    setActiveSessionId,
+  ]);
+
+  const handleRenameSession = useCallback(
+    (sessionId: string, newName: string) => {
+      renameSessionHook(sessionId, newName);
+    },
+    [renameSessionHook]
+  );
+
+  const handleTogglePinSession = useCallback(
+    (sessionId: string) => {
+      togglePinSessionHook(sessionId);
+    },
+    [togglePinSessionHook]
+  );
+
+  // Fungsi pin/unpin pesan tetap di sini karena `setSessions` masih diekspos oleh hook
+  // Atau bisa juga dipindahkan ke dalam hook jika diinginkan
+  const handlePinMessage = useCallback(
+    (messageId: string) => {
+      if (!activeSessionId) return;
+      setSessions((prevSessions) =>
+        prevSessions.map((session) => {
+          if (session.id === activeSessionId) {
+            const currentPinnedIds = session.pinnedMessageIds || [];
+            const newPinnedIds = [
+              messageId,
+              ...currentPinnedIds.filter((id) => id !== messageId),
+            ].slice(0, 3); // Batas 3 pesan disematkan
+            return { ...session, pinnedMessageIds: newPinnedIds };
+          }
+          return session;
+        })
+      );
+    },
+    [activeSessionId, setSessions]
+  );
+
+  const handleUnpinMessage = useCallback(
+    (messageIdToUnpin: string) => {
+      if (!activeSessionId) return;
+      setSessions((prevSessions) =>
+        prevSessions.map((session) => {
+          if (session.id === activeSessionId) {
+            const updatedPinnedIds = (session.pinnedMessageIds || []).filter(
+              (id) => id !== messageIdToUnpin
+            );
+            return { ...session, pinnedMessageIds: updatedPinnedIds };
+          }
+          return session;
+        })
+      );
+    },
+    [activeSessionId, setSessions]
+  );
+
+  // Fungsi untuk menangani pemilihan template dari WelcomeScreen
+  const handleSelectTemplate = useCallback(
+    (templateString: string) => {
+      setMessage(templateString);
+      // createNewSession akan dipanggil di sini, yang sudah di-memoize
+      const newSession = createNewSessionHook();
+      setActiveSessionId(newSession.id);
+      // Fokus ke input setelah template dipilih dan sesi baru dibuat
+      // Ini mungkin memerlukan ref ke textarea di ChatInputBar yang diteruskan ke ActiveChatArea
+    },
+    [createNewSessionHook, setActiveSessionId] // message dan setMessage tidak perlu karena hanya mengatur state lokal
+  );
+
+  // Tambahkan useEffect untuk menutup sidebar saat beralih dari mobile ke desktop
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768 && isSidebarOpen) {
+        setIsSidebarOpen(false);
+      }
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [isSidebarOpen]);
+
   return (
     <div className="flex h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100">
       {/* Sidebar selalu ada */}
@@ -160,7 +308,7 @@ export default function ChatPage() {
         activeSessionId={activeSessionId}
         onNewChat={createNewSession}
         onSelectSession={setActiveSessionId}
-        onDeleteSession={openDeleteConfirmationModal}
+        onDeleteSession={openDeleteConfirmationModal} // Tetap gunakan ini untuk memicu modal
         onRenameSession={handleRenameSession}
         onTogglePin={handleTogglePinSession}
       />
@@ -230,246 +378,4 @@ export default function ChatPage() {
       )}
     </div>
   );
-
-  async function handleSendMessage() {
-    if (!message.trim()) return;
-
-    if (!activeSessionId) {
-      console.error("Tidak ada sesi aktif untuk mengirim pesan.");
-      // Mungkin tampilkan notifikasi ke pengguna
-      return;
-    }
-
-    const newUserMessage: ChatMessage = {
-      id: `user-${Date.now()}`,
-      text: message,
-      sender: "user",
-      timestamp: new Date(),
-    };
-
-    setSessions((prevSessions) =>
-      prevSessions.map((session) =>
-        session.id === activeSessionId
-          ? {
-              ...session,
-              messages: [...session.messages, newUserMessage],
-              lastMessagePreview:
-                newUserMessage.text.substring(0, 40) +
-                (newUserMessage.text.length > 40 ? "..." : ""), // Update preview
-            }
-          : session
-      )
-    );
-    setMessage("");
-    setIsSending(true);
-    // Scroll ke bawah setelah pesan pengguna ditambahkan
-    requestAnimationFrame(() => {
-      chatContainerRef.current?.scrollTo(
-        0,
-        chatContainerRef.current.scrollHeight
-      );
-    });
-
-    // Mengambil beberapa pesan terakhir dari sesi aktif untuk konteks
-    // Anda bisa menyesuaikan jumlah pesan yang dikirim untuk konteks
-    const historyForContext = currentChatHistory
-      .slice(-10) // Ambil 10 pesan terakhir
-      .map((msg) => ({ sender: msg.sender, text: msg.text }));
-
-    try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: newUserMessage.text,
-          history: historyForContext,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-          errorData.details || errorData.error || "Gagal menghubungi AI"
-        );
-      }
-
-      const data = await response.json();
-      const aiMessage: ChatMessage = {
-        id: `ai-${Date.now()}`,
-        text: data.reply || "Maaf, saya tidak menerima respons yang valid.",
-        sender: "ai",
-        timestamp: new Date(),
-      };
-      setSessions((prevSessions) =>
-        prevSessions.map((session) =>
-          session.id === activeSessionId
-            ? {
-                ...session,
-                messages: [...session.messages, aiMessage],
-                lastMessagePreview:
-                  aiMessage.text.substring(0, 40) +
-                  (aiMessage.text.length > 40 ? "..." : ""), // Update preview
-              }
-            : session
-        )
-      );
-    } catch (error) {
-      console.error("Error saat mengirim pesan ke AI:", error);
-      const errorMessageText =
-        error instanceof Error && error.message
-          ? error.message
-          : "Maaf, terjadi kesalahan saat menghubungi AI. Silakan coba lagi.";
-      const errorMessage: ChatMessage = {
-        id: `error-${Date.now()}`,
-        text: errorMessageText,
-        sender: "ai",
-        timestamp: new Date(),
-      };
-      setSessions((prevSessions) =>
-        prevSessions.map((session) =>
-          session.id === activeSessionId
-            ? { ...session, messages: [...session.messages, errorMessage] } // Tidak perlu update preview untuk error message
-            : session
-        )
-      );
-    } finally {
-      setIsSending(false);
-      // Scroll ke bawah setelah pesan AI diterima atau error
-      requestAnimationFrame(() => {
-        chatContainerRef.current?.scrollTo(
-          0,
-          chatContainerRef.current.scrollHeight
-        );
-      });
-    }
-  }
-
-  function createNewSession() {
-    const newSessionId = `session-${Date.now()}`;
-    const newSession: ChatSession = {
-      id: newSessionId,
-      name: `Percakapan ${sessions.length + 1}`,
-      messages: [],
-      createdAt: new Date(),
-      isPinned: false,
-      lastMessagePreview: "Belum ada pesan",
-    };
-    setSessions((prev) => [...prev, newSession]);
-    setActiveSessionId(newSessionId);
-  }
-
-  function openDeleteConfirmationModal(sessionId: string) {
-    const session = sessions.find((s) => s.id === sessionId);
-    if (session) {
-      setSessionToDelete(session);
-      setIsConfirmationModalOpen(true);
-    }
-  }
-
-  function confirmDeleteSession() {
-    if (!sessionToDelete) return;
-
-    const sessionIdToDelete = sessionToDelete.id;
-
-    setSessions((prevSessions) =>
-      prevSessions.filter((session) => session.id !== sessionIdToDelete)
-    );
-
-    // Jika sesi yang aktif dihapus atau itu satu-satunya sesi
-    if (activeSessionId === sessionIdToDelete || sessions.length === 1) {
-      const remainingSessions = sessions.filter(
-        (session) => session.id !== sessionIdToDelete
-      );
-      if (remainingSessions.length > 0) {
-        // Atur sesi aktif ke sesi terbaru yang tersisa
-        setActiveSessionId(
-          remainingSessions.sort(
-            (a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)
-          )[0].id
-        );
-      } else {
-        // Jika tidak ada sesi tersisa, set activeSessionId ke null
-        setActiveSessionId(null); // Reset dulu
-        // Tidak perlu createNewSession() di sini, biarkan halaman kosong
-        // createNewSession();
-      }
-    }
-    // localStorage akan otomatis diperbarui oleh useEffect yang sudah ada
-  }
-
-  function handleRenameSession(sessionId: string, newName: string) {
-    setSessions((prevSessions) =>
-      prevSessions.map((session) =>
-        session.id === sessionId
-          ? { ...session, name: newName.trim() }
-          : session
-      )
-    );
-    // localStorage akan otomatis diperbarui oleh useEffect yang sudah ada
-  }
-
-  function handlePinMessage(messageId: string) {
-    if (!activeSessionId) return;
-
-    setSessions((prevSessions) =>
-      prevSessions.map((session) => {
-        if (session.id === activeSessionId) {
-          const currentPinnedIds = session.pinnedMessageIds || [];
-          // Batasi jumlah pesan yang bisa disematkan, misal 3, dan yang baru disematkan muncul di atas
-          const newPinnedIds = [
-            messageId,
-            ...currentPinnedIds.filter((id) => id !== messageId),
-          ].slice(0, 3);
-          return { ...session, pinnedMessageIds: newPinnedIds };
-        }
-        return session;
-      })
-    );
-  }
-
-  function handleUnpinMessage(messageIdToUnpin: string) {
-    if (!activeSessionId) return;
-
-    setSessions((prevSessions) =>
-      prevSessions.map((session) => {
-        if (session.id === activeSessionId) {
-          const updatedPinnedIds = (session.pinnedMessageIds || []).filter(
-            (id) => id !== messageIdToUnpin
-          );
-          return { ...session, pinnedMessageIds: updatedPinnedIds };
-        }
-        return session;
-      })
-    );
-  }
-
-  function handleTogglePinSession(sessionId: string) {
-    setSessions((prevSessions) =>
-      prevSessions.map((session) =>
-        session.id === sessionId
-          ? { ...session, isPinned: !session.isPinned }
-          : session
-      )
-    );
-    // localStorage akan otomatis diperbarui oleh useEffect [sessions, activeSessionId]
-  }
-
-  // Tambahkan useEffect untuk menutup sidebar saat beralih dari mobile ke desktop
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth >= 768 && isSidebarOpen) {
-        // 768px adalah breakpoint 'md' default Tailwind
-        setIsSidebarOpen(false);
-      }
-    };
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, [isSidebarOpen]);
-
-  // Fungsi untuk menangani pemilihan template dari WelcomeScreen
-  function handleSelectTemplate(templateString: string) {
-    setMessage(templateString);
-    createNewSession(); // Membuat sesi baru secara otomatis
-    // Logika tambahan (misal, modal placeholder) bisa ditambahkan di sini
-  }
 }

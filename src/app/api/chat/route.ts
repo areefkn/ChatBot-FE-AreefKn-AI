@@ -1,96 +1,88 @@
 // src/app/api/chat/route.ts
-import {
-  GoogleGenerativeAI,
-  HarmCategory,
-  HarmBlockThreshold,
-} from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
+import axios, { AxiosError } from "axios";
 
-const MODEL_NAME = "gemini-1.5-flash-latest"; // Coba model ini, atau "gemini-1.5-pro-latest"
-const API_KEY = process.env.GEMINI_API_KEY;
-
-if (!API_KEY) {
-  console.error("GEMINI_API_KEY is not set in environment variables.");
-  // Melempar error di sini akan menghentikan aplikasi saat build jika variabel tidak ada.
-  // Pertimbangkan untuk menangani ini dengan cara yang berbeda di produksi jika diperlukan.
-  throw new Error(
-    "GEMINI_API_KEY is not set. Please add it to your .env.local file."
-  );
-}
-
-const genAI = new GoogleGenerativeAI(API_KEY);
-const model = genAI.getGenerativeModel({ model: MODEL_NAME });
-
-const generationConfig = {
-  temperature: 0.7, // Sesuaikan untuk kreativitas (0.0 - 1.0)
-  topK: 1,
-  topP: 1,
-  maxOutputTokens: 2048, // Batas token output
-};
-
-const safetySettings = [
-  {
-    category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-  },
-  {
-    category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-  },
-  {
-    category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-  },
-  {
-    category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-  },
-];
+// URL backend kustom Anda, diambil dari environment variable server-side
+const ENV_VAR_NAME_FOR_BACKEND_URL = "CUSTOM_BACKEND_CHAT_ENDPOINT";
 
 export async function POST(req: NextRequest) {
+  const customBackendUrl = process.env[ENV_VAR_NAME_FOR_BACKEND_URL];
+
+  if (!customBackendUrl) {
+    console.error(
+      `${ENV_VAR_NAME_FOR_BACKEND_URL} is not set in environment variables. Please check your .env.local file.`
+    );
+    return NextResponse.json(
+      {
+        error: `Server configuration error: The backend API URL is not set.`,
+      },
+      { status: 500 }
+    );
+  }
+  // At this point, TypeScript knows customBackendUrl is a string.
+
   try {
     const { message, history } = await req.json();
 
     if (!message) {
-      return NextResponse.json({ error: "Pesan diperlukan" }, { status: 400 });
-    }
-
-    const chatHistoryForGemini = history
-      ? history.map((msg: { sender: string; text: string }) => ({
-          role: msg.sender === "user" ? "user" : "model",
-          parts: [{ text: msg.text }],
-        }))
-      : [];
-
-    const chat = model.startChat({
-      generationConfig,
-      safetySettings,
-      history: chatHistoryForGemini,
-    });
-
-    const result = await chat.sendMessage(message);
-    const response = result.response;
-    const aiReply = response.text();
-
-    return NextResponse.json({ reply: aiReply });
-  } catch (error) {
-    console.error("Error saat memanggil Gemini API:", error);
-    const errorMessage =
-      error instanceof Error
-        ? error.message
-        : "Gagal mendapatkan respons dari AI";
-    // Periksa apakah error terkait safety settings
-    if (errorMessage.includes("SAFETY")) {
       return NextResponse.json(
-        {
-          error: "Respons diblokir karena pengaturan keamanan.",
-          details: errorMessage,
-        },
-        { status: 500 }
+        { error: "Pesan diperlukan dalam request body" },
+        { status: 400 }
       );
     }
+
+    // Asumsikan customBackendUrl adalah base URL (misalnya, "http://localhost:5055")
+    // Tambahkan path spesifik untuk endpoint chat di sini
+    const fullBackendChatUrl = `${customBackendUrl.replace(
+      /\/$/,
+      ""
+    )}/api/chat`;
+    // Meneruskan request ke backend kustom Anda
+    const backendResponse = await axios.post(
+      fullBackendChatUrl,
+      {
+        message,
+        history, // Asumsikan backend kustom Anda mengharapkan format yang sama
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          // Anda mungkin perlu meneruskan header lain jika backend kustom Anda memerlukannya
+        },
+      }
+    );
+
+    // Mengembalikan respons dari backend kustom ke frontend
+    return NextResponse.json(backendResponse.data, {
+      status: backendResponse.status,
+    });
+  } catch (error) {
+    console.error(
+      `Error saat memproxy request ke custom backend URL: ${customBackendUrl}/api/chat. Error:`, // Sesuaikan logging jika perlu
+      error
+    );
+
+    if (axios.isAxiosError(error)) {
+      const axiosError = error as AxiosError<any>;
+      // Jika error berasal dari respons backend kustom
+      if (axiosError.response) {
+        return NextResponse.json(
+          axiosError.response.data || {
+            error: "Gagal berkomunikasi dengan layanan chat backend.",
+          },
+          { status: axiosError.response.status || 500 }
+        );
+      }
+      // Jika error terjadi sebelum respons diterima (misalnya, masalah jaringan ke backend kustom)
+      return NextResponse.json(
+        { error: "Tidak dapat terhubung ke layanan chat backend." },
+        { status: 503 } // Service Unavailable
+      );
+    }
+
+    // Error lainnya
     return NextResponse.json(
-      { error: "Gagal mendapatkan respons dari AI", details: errorMessage },
+      { error: "Terjadi kesalahan internal pada server proxy." },
       { status: 500 }
     );
   }
