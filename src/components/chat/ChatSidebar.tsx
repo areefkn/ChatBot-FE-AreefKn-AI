@@ -1,7 +1,5 @@
 // src/components/chat/ChatSidebar.tsx
 "use client";
-
-import { useTheme } from "next-themes";
 import React, { useState, useRef, useEffect } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { id } from "date-fns/locale"; // Untuk format bahasa Indonesia
@@ -13,8 +11,6 @@ import {
   X,
   Pin,
   PinOff, // Impor ikon PinOff
-  Sun, // Impor ikon Sun
-  Moon, // Impor ikon Moon
   MessageSquare,
 } from "lucide-react";
 
@@ -50,14 +46,6 @@ export function ChatSidebar({
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState<string>("");
   const inputRef = useRef<HTMLInputElement>(null);
-  const { theme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-
-  // useEffect hanya berjalan di sisi klien, setelah komponen di-mount
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
   useEffect(() => {
     if (editingSessionId && inputRef.current) {
       inputRef.current.focus();
@@ -77,7 +65,7 @@ export function ChatSidebar({
 
   return (
     <aside
-      className={`bg-white dark:bg-slate-800 shadow-lg transition-all duration-300 ease-in-out ${
+      className={`bg-slate-100 dark:bg-slate-800 shadow-lg transition-all duration-300 ease-in-out ${
         isOpen ? "w-64 p-4" : "w-0"
       } md:w-80 md:p-4 flex-shrink-0 overflow-hidden`}
     >
@@ -113,12 +101,12 @@ export function ChatSidebar({
           {sortedUnpinnedSessions.length > 0 && (
             <div className="mb-3">
               <div
-                className={`sticky top-0 bg-white dark:bg-slate-800 z-10 px-1 py-1.5 mb-1 ${
+                className={`sticky top-0 rounded-2xl bg-white dark:bg-slate-800 z-10 px-1 py-1.5 mb-1 ${
                   sortedPinnedSessions.length > 0 ? "pt-2" : ""
                 }`}
               >
                 <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center">
-                  <MessageSquare size={12} className="mr-1.5" />
+                  <MessageSquare size={12} className="mr-1.5 " />
                   PERCAKAPAN
                 </h3>
               </div>
@@ -135,31 +123,6 @@ export function ChatSidebar({
               <p className="text-sm">Mulai percakapan baru</p>
             </div>
           )}
-        </div>
-        {/* Theme Toggle Button */}
-        <div className="mt-auto pt-4 border-t border-slate-200 dark:border-slate-700">
-          <button
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-            aria-label="Ganti Tema"
-            disabled={!mounted} // Nonaktifkan tombol sampai komponen di-mount
-          >
-            {mounted &&
-              (theme === "dark" ? (
-                <>
-                  <Sun size={18} className="text-yellow-500" /> Terang
-                </>
-              ) : (
-                <>
-                  <Moon
-                    size={18}
-                    className="text-slate-700 dark:text-slate-300"
-                  />{" "}
-                  Gelap
-                </>
-              ))}
-            {!mounted && <div className="w-5 h-5" /> /* Placeholder */}
-          </button>
         </div>
       </div>
     </aside>

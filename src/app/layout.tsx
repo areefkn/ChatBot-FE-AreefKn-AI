@@ -1,13 +1,14 @@
+// src/app/layout.tsx
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import "./globals.css";
-import { ThemeProvider } from "@/components/theme-provider";
+import "./globals.css"; // Pastikan ini diimpor sebelum ThemeProvider
+import { ThemeProvider } from "next-themes";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Gemini AI Chat",
-  description: "Chat Interface for Google Gemini",
+  title: "AreefKn AI", // Or your app's title
+  description: "Chatbot powered by Gemini", // Or your app's description
 };
 
 export default function RootLayout({
@@ -16,11 +17,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="id" suppressHydrationWarning>
+      {/* Pastikan tidak ada spasi atau baris baru antara tag html dan body */}
+      {/* Hapus spasi ekstra dari sini */}
+      {/* suppressHydrationWarning is often recommended with next-themes */}
       <body className={inter.className}>
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
+          defaultTheme="system" // Or "light" or "dark"
           enableSystem
           disableTransitionOnChange
         >

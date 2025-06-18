@@ -1,4 +1,4 @@
-// ChatInputBar.tsx
+// src/components/chat/ChatInputBar.tsx
 "use client";
 import React, { useRef, useEffect } from "react";
 import { Paperclip, Send } from "lucide-react";
