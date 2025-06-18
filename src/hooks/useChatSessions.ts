@@ -104,18 +104,21 @@ export function useChatSessions() {
         )
       );
     },
-    []
-  );
+    [] // Tambahkan array dependensi kosong
+  ); // Tidak ada dependensi eksternal selain setSessions
 
-  const togglePinSessionHook = useCallback((sessionId: string) => {
-    setSessions((prevSessions) =>
-      prevSessions.map((session) =>
-        session.id === sessionId
-          ? { ...session, isPinned: !session.isPinned }
-          : session
-      )
-    );
-  }, []);
+  const togglePinSessionHook = useCallback(
+    (sessionId: string) => {
+      setSessions((prevSessions) =>
+        prevSessions.map((session) =>
+          session.id === sessionId
+            ? { ...session, isPinned: !session.isPinned }
+            : session
+        )
+      );
+    },
+    [] // Tambahkan array dependensi kosong
+  ); // Tidak ada dependensi eksternal selain setSessions
 
   const addMessageToSessionHook = useCallback(
     (sessionId: string, message: ChatMessage) => {
@@ -134,8 +137,8 @@ export function useChatSessions() {
         )
       );
     },
-    []
-  );
+    [] // Tambahkan array dependensi kosong
+  ); // Tidak ada dependensi eksternal selain setSessions
 
   // Fungsi untuk pin/unpin pesan bisa ditambahkan di sini juga jika ingin lebih terpusat
 

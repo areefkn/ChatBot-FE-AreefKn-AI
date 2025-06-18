@@ -40,13 +40,15 @@ export default function ChatPage() {
   ) as React.RefObject<HTMLDivElement>;
   const appTitle = "AreefKn AI";
 
-  useEffect(() => {
-    // Auto-scroll ke pesan terbaru
-    chatContainerRef.current?.scrollTo(
-      0,
-      chatContainerRef.current.scrollHeight
-    );
-  }, [sessions, activeSessionId]); // Bergantung pada sesi dan sesi aktif
+  // useEffect(() => {
+  //   // Auto-scroll ke pesan terbaru
+  //   // Dipertimbangkan untuk dihapus karena scroll sudah ditangani di handleSendMessage
+  //   // Jika dipertahankan, pastikan tidak konflik dengan scroll di handleSendMessage
+  //   chatContainerRef.current?.scrollTo(
+  //     0,
+  //     chatContainerRef.current.scrollHeight
+  //   );
+  // }, [sessions, activeSessionId]); // Bergantung pada sesi dan sesi aktif
 
   // --- Logika untuk memuat ID sesi aktif terakhir ---
   // Dijalankan setelah `useChatSessions` memuat `sessions`
@@ -172,8 +174,7 @@ export default function ChatPage() {
     message,
     activeSessionId,
     addMessageToSessionHook,
-    sessions, // Untuk mengambil historyForContext
-    // chatContainerRef tidak perlu di dependency array useCallback jika hanya methodnya yg dipakai
+    sessions, // Untuk mengambil historyForContext. setMessage dan setIsSending adalah setter, jadi opsional.
   ]);
 
   const createNewSession = useCallback(() => {
@@ -285,7 +286,7 @@ export default function ChatPage() {
       // Fokus ke input setelah template dipilih dan sesi baru dibuat
       // Ini mungkin memerlukan ref ke textarea di ChatInputBar yang diteruskan ke ActiveChatArea
     },
-    [createNewSessionHook, setActiveSessionId] // message dan setMessage tidak perlu karena hanya mengatur state lokal
+    [createNewSessionHook, setActiveSessionId, setMessage] // setMessage ditambahkan jika ingin membersihkan input setelah template
   );
 
   // Tambahkan useEffect untuk menutup sidebar saat beralih dari mobile ke desktop

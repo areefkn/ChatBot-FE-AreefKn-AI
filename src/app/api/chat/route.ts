@@ -21,6 +21,9 @@ export async function POST(req: NextRequest) {
   }
   // At this point, TypeScript knows customBackendUrl is a string.
 
+  // Deklarasikan fullBackendChatUrl di sini agar bisa diakses di blok catch
+  let fullBackendChatUrl = "";
+
   try {
     const { message, history } = await req.json();
 
@@ -33,10 +36,8 @@ export async function POST(req: NextRequest) {
 
     // Asumsikan customBackendUrl adalah base URL (misalnya, "http://localhost:5055")
     // Tambahkan path spesifik untuk endpoint chat di sini
-    const fullBackendChatUrl = `${customBackendUrl.replace(
-      /\/$/,
-      ""
-    )}/api/chat`;
+    fullBackendChatUrl = `${customBackendUrl.replace(/\/$/, "")}/api/chat`;
+
     // Meneruskan request ke backend kustom Anda
     const backendResponse = await axios.post(
       fullBackendChatUrl,
@@ -58,7 +59,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error(
-      `Error saat memproxy request ke custom backend URL: ${customBackendUrl}/api/chat. Error:`, // Sesuaikan logging jika perlu
+      `Error saat memproxy request ke custom backend URL: ${fullBackendChatUrl}. Error:`,
       error
     );
 
