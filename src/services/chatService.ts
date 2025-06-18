@@ -10,12 +10,14 @@ interface ChatMessageForContext {
 
 interface AIResponse {
   reply: string;
-  // Mungkin ada properti lain yang dikembalikan API Anda
+  sessionId?: string; // Jika backend mengembalikan ini
+  timestamp?: string; // Atau Date, jika backend mengembalikan ini
 }
 
 export async function sendMessageToAI(
   message: string,
-  history: ChatMessageForContext[]
+  history: ChatMessageForContext[],
+  sessionId?: string | null // Tambahkan sessionId sebagai argumen
 ): Promise<AIResponse> {
   try {
     const response = await axios.post<AIResponse>(
@@ -23,6 +25,7 @@ export async function sendMessageToAI(
       {
         message: message,
         history: history,
+        sessionId: sessionId, // Kirim sessionId dalam payload
       },
       {
         headers: {

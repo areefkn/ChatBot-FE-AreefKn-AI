@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
   let fullBackendChatUrl = "";
 
   try {
-    const { message, history } = await req.json();
+    const { message, history, sessionId } = await req.json(); // Ambil sessionId
 
     if (!message) {
       return NextResponse.json(
@@ -44,6 +44,7 @@ export async function POST(req: NextRequest) {
       {
         message,
         history, // Asumsikan backend kustom Anda mengharapkan format yang sama
+        sessionId, // Teruskan sessionId ke backend kustom
       },
       {
         headers: {

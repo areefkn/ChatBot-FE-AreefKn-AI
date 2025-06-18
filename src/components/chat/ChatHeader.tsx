@@ -24,12 +24,38 @@ export function ChatHeader({
   }, []);
   return (
     <header className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
+      {/* Tombol Menu untuk membuka sidebar */}
+      {/* Di mobile, tombol ini hanya untuk membuka. Di desktop, bisa untuk toggle. */}
       <button
-        onClick={onToggleSidebar}
-        className="md:hidden p-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-        aria-label={isSidebarOpen ? "Tutup bilah sisi" : "Buka bilah sisi"}
+        onClick={() => {
+          // Untuk mobile, hanya buka jika belum terbuka.
+          // Untuk desktop, ini akan menjadi toggle.
+          if (
+            typeof window !== "undefined" &&
+            window.innerWidth < 768 &&
+            isSidebarOpen
+          ) {
+            // 768px adalah breakpoint md Tailwind
+            return; // Jangan lakukan apa-apa jika di mobile dan sidebar sudah terbuka (tutup via tombol X di dalam)
+          }
+          onToggleSidebar();
+        }} // Tambahkan md:hidden untuk menyembunyikan di desktop
+        className="p-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500 md:hidden"
+        aria-label={
+          isSidebarOpen &&
+          typeof window !== "undefined" &&
+          window.innerWidth >= 768
+            ? "Tutup bilah sisi"
+            : "Buka bilah sisi"
+        }
       >
-        {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
+        {isSidebarOpen &&
+        typeof window !== "undefined" &&
+        window.innerWidth >= 768 ? (
+          <X size={24} />
+        ) : (
+          <Menu size={24} />
+        )}
       </button>
       <h1 className="text-lg font-semibold">{title}</h1>
       <button

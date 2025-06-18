@@ -34,6 +34,7 @@ export default function ChatPage() {
     null
   );
   const [isConfirmationModalOpen, setIsConfirmationModalOpen] = useState(false);
+  const [hasUserInteracted, setHasUserInteracted] = useState(false); // State baru
   const [isSending, setIsSending] = useState(false); // Untuk loading state
   const chatContainerRef = useRef<HTMLDivElement>(
     null
@@ -53,7 +54,15 @@ export default function ChatPage() {
   // --- Logika untuk memuat ID sesi aktif terakhir ---
   // Dijalankan setelah `useChatSessions` memuat `sessions`
   useEffect(() => {
-    if (sessions.length > 0) {
+    // Hanya coba muat sesi terakhir jika pengguna sudah berinteraksi
+    // atau jika Anda ingin logika lain untuk "melanjutkan sesi terakhir" secara otomatis
+    // Untuk UX yang diminta (selalu WelcomeScreen di awal jika belum ada interaksi),
+    // kita bisa menunda pemuatan sesi aktif.
+    // Namun, jika ingin tetap ada opsi "lanjutkan sesi terakhir", ini perlu penyesuaian.
+    // Untuk saat ini, kita akan fokus pada menampilkan WelcomeScreen.
+    // Jika `hasUserInteracted` adalah false, `activeSessionId` akan tetap null.
+
+    if (hasUserInteracted && sessions.length > 0) {
       const lastActiveSessionIdFromStorage = localStorage.getItem(
         "lastActiveSessionId_areefkn_v2"
       );
@@ -62,16 +71,12 @@ export default function ChatPage() {
         sessions.find((s) => s.id === lastActiveSessionIdFromStorage)
       ) {
         setActiveSessionId(lastActiveSessionIdFromStorage);
-      } else {
-        // Default ke sesi terbaru jika tidak ada atau tidak valid
-        // Asumsi sesi sudah diurutkan atau ambil yang terakhir dari array yang ada
-        setActiveSessionId(sessions[sessions.length - 1].id);
+      } else if (sessions.length > 0) {
+        // Jika tidak ada di storage, tapi ada sesi, jangan auto-select
+        // setActiveSessionId(sessions[sessions.length - 1].id); // Hapus auto-select ini
       }
-    } else {
-      // Jika tidak ada sesi sama sekali setelah dimuat
-      setActiveSessionId(null);
     }
-  }, [sessions]); // Hanya bergantung pada `sessions` dari hook
+  }, [sessions, hasUserInteracted]); // Tambahkan hasUserInteracted sebagai dependensi
 
   // --- Logika untuk menyimpan ID sesi aktif terakhir ---
   useEffect(() => {
@@ -139,14 +144,24 @@ export default function ChatPage() {
       .map((msg) => ({ sender: msg.sender, text: msg.text }));
 
     try {
-      const data = await sendMessageToAI(userMessageText, historyForContext);
+      const data = await sendMessageToAI(
+        userMessageText,
+        historyForContext,
+        activeSessionId // Kirim activeSessionId
+      );
       const aiMessage: ChatMessage = {
-        id: `ai-${uuidv4()}`,
+        id: `ai-${uuidv4()}`, // Atau gunakan ID dari backend jika ada
         text: data.reply || "Maaf, saya tidak menerima respons yang valid.",
         sender: "ai",
-        timestamp: new Date(),
+        timestamp: data.timestamp ? new Date(data.timestamp) : new Date(), // Gunakan timestamp dari backend jika ada
       };
       addMessageToSessionHook(activeSessionId, aiMessage);
+
+      // Opsional: Jika backend mengembalikan sessionId yang berbeda (misalnya untuk sesi baru yang dibuat oleh backend)
+      // if (data.sessionId && data.sessionId !== activeSessionId) {
+      //   setActiveSessionId(data.sessionId);
+      //   // Anda mungkin juga perlu memperbarui ID sesi di dalam state 'sessions' melalui fungsi dari useChatSessions
+      // }
     } catch (error) {
       console.error("Error saat mengirim pesan ke AI:", error);
       let errorMessageText =
@@ -180,6 +195,7 @@ export default function ChatPage() {
   const createNewSession = useCallback(() => {
     const newSession = createNewSessionHook();
     setActiveSessionId(newSession.id);
+    setHasUserInteracted(true); // Pengguna telah berinteraksi
   }, [createNewSessionHook, setActiveSessionId]);
 
   const openDeleteConfirmationModal = useCallback(
@@ -190,7 +206,7 @@ export default function ChatPage() {
         setIsConfirmationModalOpen(true);
       }
     },
-    [sessions]
+    [sessions] // Tidak mengubah hasUserInteracted
   );
 
   const confirmDeleteSession = useCallback(() => {
@@ -219,21 +235,21 @@ export default function ChatPage() {
     deleteSessionHook,
     activeSessionId,
     sessions,
-    setActiveSessionId,
+    setActiveSessionId, // Tidak mengubah hasUserInteracted secara langsung di sini
   ]);
 
   const handleRenameSession = useCallback(
     (sessionId: string, newName: string) => {
       renameSessionHook(sessionId, newName);
     },
-    [renameSessionHook]
+    [renameSessionHook] // Tidak mengubah hasUserInteracted
   );
 
   const handleTogglePinSession = useCallback(
     (sessionId: string) => {
       togglePinSessionHook(sessionId);
     },
-    [togglePinSessionHook]
+    [togglePinSessionHook] // Tidak mengubah hasUserInteracted
   );
 
   // Fungsi pin/unpin pesan tetap di sini karena `setSessions` masih diekspos oleh hook
@@ -255,7 +271,7 @@ export default function ChatPage() {
         })
       );
     },
-    [activeSessionId, setSessions]
+    [activeSessionId, setSessions] // Tidak mengubah hasUserInteracted
   );
 
   const handleUnpinMessage = useCallback(
@@ -273,7 +289,7 @@ export default function ChatPage() {
         })
       );
     },
-    [activeSessionId, setSessions]
+    [activeSessionId, setSessions] // Tidak mengubah hasUserInteracted
   );
 
   // Fungsi untuk menangani pemilihan template dari WelcomeScreen
@@ -283,10 +299,11 @@ export default function ChatPage() {
       // createNewSession akan dipanggil di sini, yang sudah di-memoize
       const newSession = createNewSessionHook();
       setActiveSessionId(newSession.id);
+      setHasUserInteracted(true); // Pengguna telah berinteraksi
       // Fokus ke input setelah template dipilih dan sesi baru dibuat
       // Ini mungkin memerlukan ref ke textarea di ChatInputBar yang diteruskan ke ActiveChatArea
     },
-    [createNewSessionHook, setActiveSessionId, setMessage] // setMessage ditambahkan jika ingin membersihkan input setelah template
+    [createNewSessionHook, setActiveSessionId, setMessage]
   );
 
   // Tambahkan useEffect untuk menutup sidebar saat beralih dari mobile ke desktop
@@ -307,18 +324,39 @@ export default function ChatPage() {
         isOpen={isSidebarOpen}
         sessions={sessionsForSidebar} // Gunakan data sesi yang sudah disiapkan
         activeSessionId={activeSessionId}
-        onNewChat={createNewSession}
-        onSelectSession={setActiveSessionId}
+        onNewChat={() => {
+          createNewSession(); // createNewSession sudah mengatur hasUserInteracted
+        }}
+        onSelectSession={(sessionId) => {
+          setActiveSessionId(sessionId);
+          setHasUserInteracted(true); // Pengguna telah berinteraksi
+          // Khusus mobile, tutup sidebar setelah memilih sesi
+          if (typeof window !== "undefined" && window.innerWidth < 768) {
+            // 768px adalah breakpoint md Tailwind
+            setIsSidebarOpen(false);
+          }
+        }}
         onDeleteSession={openDeleteConfirmationModal} // Tetap gunakan ini untuk memicu modal
         onRenameSession={handleRenameSession}
         onTogglePin={handleTogglePinSession}
+        onCloseSidebarMobile={() => setIsSidebarOpen(false)} // Ganti nama prop menjadi onCloseSidebarMobile
       />
 
       {/* Overlay untuk menutup sidebar di mobile */}
       {isSidebarOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-20 md:hidden"
-          onClick={() => setIsSidebarOpen(false)}
+          onClick={() => {
+            // Periksa apakah elemen yang diklik adalah bagian dari sidebar.
+            // Ini memerlukan cara untuk mengidentifikasi elemen sidebar, misalnya dengan ref atau ID.
+            // Namun, pendekatan ini bisa menjadi rumit.
+            // Kita akan tetap mengandalkan e.stopPropagation() dari sidebar.
+            // Jika e.stopPropagation() benar-benar gagal, ini adalah fallback terakhir.
+            // console.log("Overlay clicked. Target:", e.target, "CurrentTarget:", e.currentTarget);
+            // if (e.target === e.currentTarget) { // Ini adalah pemeriksaan yang lebih aman
+            setIsSidebarOpen(false);
+            // }
+          }}
         ></div>
       )}
 
@@ -352,8 +390,10 @@ export default function ChatPage() {
           // Tampilkan pesan selamat datang jika tidak ada sesi aktif
           <WelcomeScreen
             appTitle={appTitle}
-            onNewChat={createNewSession} // Teruskan fungsi createNewSession
-            onSelectTemplate={handleSelectTemplate}
+            onNewChat={() => {
+              createNewSession(); // createNewSession sudah mengatur hasUserInteracted
+            }}
+            onSelectTemplate={handleSelectTemplate} // handleSelectTemplate sudah mengatur hasUserInteracted
           />
         )}
       </main>
