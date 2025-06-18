@@ -1,21 +1,29 @@
 // src/components/chat/ChatSidebar.tsx
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import { useTheme } from "next-themes";
+import React, { useState, useRef, useEffect } from "react";
+import { formatDistanceToNow } from "date-fns";
+import { id } from "date-fns/locale"; // Untuk format bahasa Indonesia
 import {
   PlusCircle,
   Trash2,
   FilePenLine,
   Check,
   X,
-  MoreVertical,
+  Pin,
+  PinOff, // Impor ikon PinOff
+  Sun, // Impor ikon Sun
+  Moon, // Impor ikon Moon
+  MessageSquare,
 } from "lucide-react";
 
 interface ChatSession {
   id: string;
   name: string;
   createdAt: Date;
-  // messages: ChatMessage[]; // Tidak perlu messages di sini untuk display sidebar
+  isPinned?: boolean; // Properti baru untuk status pin
+  lastMessagePreview?: string; // Properti baru untuk pratinjau pesan
 }
 
 interface ChatSidebarProps {
@@ -26,6 +34,7 @@ interface ChatSidebarProps {
   onSelectSession: (sessionId: string) => void;
   onDeleteSession: (sessionId: string) => void;
   onRenameSession: (sessionId: string, newName: string) => void; // Prop baru
+  onTogglePin: (sessionId: string) => void; // Prop baru untuk pin/unpin sesi
 }
 
 export function ChatSidebar({
@@ -36,13 +45,18 @@ export function ChatSidebar({
   onSelectSession,
   onDeleteSession,
   onRenameSession,
+  onTogglePin,
 }: ChatSidebarProps) {
-  const [hoveredSessionId, setHoveredSessionId] = useState<string | null>(null);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState<string>("");
-  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  // useEffect hanya berjalan di sisi klien, setelah komponen di-mount
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (editingSessionId && inputRef.current) {
@@ -51,24 +65,15 @@ export function ChatSidebar({
     }
   }, [editingSessionId]);
 
-  const handleClickOutside = useCallback(
-    (event: MouseEvent) => {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
-      ) {
-        setOpenDropdownId(null);
-      }
-    },
-    [setOpenDropdownId]
-  );
+  const pinnedSessions = sessions.filter((session) => session.isPinned);
+  const unpinnedSessions = sessions.filter((session) => !session.isPinned);
 
-  useEffect(() => {
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    }; // Dependency array should include handleClickOutside
-  }, [editingSessionId, handleClickOutside]);
+  const sortedUnpinnedSessions = unpinnedSessions.sort(
+    (a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)
+  );
+  const sortedPinnedSessions = pinnedSessions.sort(
+    (a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)
+  );
 
   return (
     <aside
@@ -84,149 +89,205 @@ export function ChatSidebar({
           <PlusCircle size={18} />
           Chat Baru
         </button>
-        <div className="flex-grow overflow-y-auto space-y-2 pr-1">
-          {sessions
-            .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
-            .map((session) => (
-              <div
-                key={session.id}
-                className="relative flex items-center group w-full"
-                onMouseEnter={() => setHoveredSessionId(session.id)}
-                onMouseLeave={() => setHoveredSessionId(null)}
-              >
-                {editingSessionId === session.id ? (
-                  <div className="flex items-center w-full">
-                    <input
-                      ref={inputRef}
-                      type="text"
-                      value={editingName}
-                      onChange={(e) => setEditingName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          if (editingName.trim()) {
-                            onRenameSession(session.id, editingName.trim());
-                          }
-                          setEditingSessionId(null);
-                        } else if (e.key === "Escape") {
-                          setEditingSessionId(null);
-                        }
-                      }}
-                      className="flex-grow p-2 mr-1 text-sm bg-slate-100 dark:bg-slate-700 border border-indigo-500 rounded-md focus:outline-none focus:ring-1 focus:ring-cyan-500"
-                    />
-                    <button
-                      onClick={() => {
-                        if (editingName.trim()) {
-                          onRenameSession(session.id, editingName.trim());
-                        }
-                        setEditingSessionId(null);
-                      }}
-                      className="p-1.5 rounded-md text-green-600 hover:bg-green-100 dark:hover:bg-green-700"
-                      title="Simpan Nama"
-                    >
-                      <Check size={16} />
-                    </button>
-                    <button
-                      onClick={() => setEditingSessionId(null)}
-                      className="p-1.5 rounded-md text-slate-600 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-700"
-                      title="Batal"
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <button
-                      onClick={() => onSelectSession(session.id)}
-                      className={`w-full text-left pl-3 pr-8 py-2 rounded-md text-sm truncate ${
-                        activeSessionId === session.id
-                          ? "bg-indigo-100 dark:bg-indigo-700 text-indigo-700 dark:text-indigo-100 font-medium"
-                          : "hover:bg-slate-100 dark:hover:bg-slate-700 "
-                      }`}
-                      title={session.name}
-                    >
-                      {session.name}
-                    </button>
-                    <div className="absolute right-1 flex items-center">
-                      {/* Tombol Titik Tiga */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setOpenDropdownId(
-                            openDropdownId === session.id ? null : session.id
-                          );
-                        }}
-                        className={`p-1.5 rounded-md text-slate-500 dark:text-slate-400  ${
-                          openDropdownId === session.id
-                            ? "bg-slate-200 dark:bg-slate-700"
-                            : "hover:bg-slate-200 dark:hover:bg-slate-700"
-                        } ${
-                          hoveredSessionId === session.id ||
-                          activeSessionId === session.id ||
-                          openDropdownId === session.id
-                            ? "opacity-100"
-                            : "opacity-0 group-hover:opacity-100"
-                        } focus:opacity-100 transition-opacity`}
-                        title="Opsi Lainnya"
-                        aria-haspopup="true"
-                        aria-expanded={openDropdownId === session.id}
-                      >
-                        <MoreVertical size={16} />
-                      </button>
 
-                      {/* Dropdown Menu */}
-                      {openDropdownId === session.id && (
-                        <div
-                          ref={dropdownRef}
-                          className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-slate-700 rounded-md shadow-lg ring-1 ring-black/5 dark:ring-white/10 z-20 py-1"
-                          role="menu"
-                          aria-orientation="vertical"
-                          aria-labelledby={`options-menu-${session.id}`}
-                        >
-                          <button
-                            onClick={() => {
-                              setEditingSessionId(session.id);
-                              setEditingName(session.name);
-                              setOpenDropdownId(null); // Tutup dropdown setelah memilih
-                            }}
-                            className="w-full text-left flex items-center gap-2 px-3 py-1.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600"
-                            role="menuitem"
-                          >
-                            <FilePenLine size={15} className="mr-2" />
-                            Ubah Nama
-                          </button>
-                          <button
-                            onClick={() => {
-                              onDeleteSession(session.id);
-                              setOpenDropdownId(null); // Tutup dropdown setelah memilih
-                            }}
-                            className="w-full text-left flex items-center gap-2 px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/50"
-                            role="menuitem"
-                          >
-                            <Trash2 size={15} className="mr-2" />
-                            Hapus
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-                {/* Div untuk menutup dropdown saat klik di luar, hanya aktif jika dropdown terbuka */}
-                {editingSessionId !== session.id &&
-                  openDropdownId === session.id && (
-                    <div
-                      className="fixed inset-0 z-0"
-                      onClick={() => setOpenDropdownId(null)}
-                    />
-                  )}
+        <div className="flex-grow overflow-y-auto no-scrollbar">
+          {/* Pinned Sessions */}
+          {sortedPinnedSessions.length > 0 && (
+            <div className="mb-3">
+              <div className="sticky top-0 bg-white dark:bg-slate-800 z-10 px-1 py-1.5 mb-1">
+                <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center">
+                  <Pin
+                    size={12}
+                    className="mr-1.5 text-cyan-600 dark:text-cyan-400"
+                  />
+                  TERSEMAT
+                </h3>
               </div>
-            ))}
-          {sessions.length === 0 && (
-            <p className="text-xs text-slate-500 dark:text-slate-400 px-2 text-center">
-              Belum ada sesi chat.
-            </p>
+              <div className="space-y-1.5">
+                {sortedPinnedSessions.map(renderSessionItem)}
+              </div>
+            </div>
           )}
+
+          {/* Unpinned Sessions */}
+          {sortedUnpinnedSessions.length > 0 && (
+            <div className="mb-3">
+              <div
+                className={`sticky top-0 bg-white dark:bg-slate-800 z-10 px-1 py-1.5 mb-1 ${
+                  sortedPinnedSessions.length > 0 ? "pt-2" : ""
+                }`}
+              >
+                <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center">
+                  <MessageSquare size={12} className="mr-1.5" />
+                  PERCAKAPAN
+                </h3>
+              </div>
+              <div className="space-y-1.5">
+                {sortedUnpinnedSessions.map(renderSessionItem)}
+              </div>
+            </div>
+          )}
+
+          {sessions.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-40 text-slate-400 dark:text-slate-500 text-center px-2">
+              <MessageSquare className="h-10 w-10 mb-2 opacity-50" />
+              <p className="font-medium">Belum ada percakapan</p>
+              <p className="text-sm">Mulai percakapan baru</p>
+            </div>
+          )}
+        </div>
+        {/* Theme Toggle Button */}
+        <div className="mt-auto pt-4 border-t border-slate-200 dark:border-slate-700">
+          <button
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+            aria-label="Ganti Tema"
+            disabled={!mounted} // Nonaktifkan tombol sampai komponen di-mount
+          >
+            {mounted &&
+              (theme === "dark" ? (
+                <>
+                  <Sun size={18} className="text-yellow-500" /> Terang
+                </>
+              ) : (
+                <>
+                  <Moon
+                    size={18}
+                    className="text-slate-700 dark:text-slate-300"
+                  />{" "}
+                  Gelap
+                </>
+              ))}
+            {!mounted && <div className="w-5 h-5" /> /* Placeholder */}
+          </button>
         </div>
       </div>
     </aside>
   );
+
+  function renderSessionItem(session: ChatSession) {
+    const isActive = activeSessionId === session.id;
+    const previewText = session.lastMessagePreview || "Belum ada pesan";
+
+    if (editingSessionId === session.id) {
+      return (
+        <div key={session.id} className="flex items-center w-full p-2">
+          <input
+            ref={inputRef}
+            type="text"
+            value={editingName}
+            onChange={(e) => setEditingName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                if (editingName.trim()) {
+                  onRenameSession(session.id, editingName.trim());
+                }
+                setEditingSessionId(null);
+              } else if (e.key === "Escape") {
+                setEditingSessionId(null);
+              }
+            }}
+            className="flex-grow p-2 mr-1 text-sm bg-slate-100 dark:bg-slate-700 border border-indigo-500 rounded-md focus:outline-none focus:ring-1 focus:ring-cyan-500"
+          />
+          <button
+            onClick={() => {
+              if (editingName.trim()) {
+                onRenameSession(session.id, editingName.trim());
+              }
+              setEditingSessionId(null);
+            }}
+            className="p-1.5 rounded-md text-green-600 hover:bg-green-100 dark:hover:bg-green-700"
+            title="Simpan Nama"
+          >
+            <Check size={16} />
+          </button>
+          <button
+            onClick={() => setEditingSessionId(null)}
+            className="p-1.5 rounded-md text-slate-600 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-700"
+            title="Batal"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div
+        key={session.id}
+        className={`group p-2.5 rounded-lg cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/60 flex flex-col transition-colors ${
+          isActive
+            ? "bg-gradient-to-r from-cyan-50 via-violet-50 to-indigo-50 dark:from-cyan-900/30 dark:via-violet-900/30 dark:to-indigo-900/30 border-l-4 border-cyan-500 dark:border-cyan-400"
+            : "border-l-4 border-transparent"
+        }`}
+        onClick={() => onSelectSession(session.id)}
+      >
+        <div className="flex justify-between items-start">
+          <div className="flex-1 min-w-0">
+            {" "}
+            {/* min-w-0 untuk truncate */}
+            <h3
+              className={`font-medium truncate text-sm ${
+                isActive
+                  ? "text-cyan-700 dark:text-cyan-200"
+                  : "text-slate-800 dark:text-slate-100"
+              }`}
+            >
+              {session.name}
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+              {previewText}
+            </p>
+          </div>
+          <div className="flex items-center space-x-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150">
+            <button
+              title={session.isPinned ? "Lepas Sematan" : "Sematkan Sesi"}
+              className={`p-1.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-600 ${
+                session.isPinned
+                  ? "text-cyan-500 dark:text-cyan-400" // Menggunakan warna solid agar ikon PinOff terlihat jelas
+                  : "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
+              }`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onTogglePin(session.id);
+              }}
+            >
+              {session.isPinned ? (
+                <PinOff size={14} /> // Gunakan PinOff jika sudah disematkan
+              ) : (
+                <Pin size={14} /> // Gunakan Pin jika belum disematkan
+              )}
+            </button>
+            <button
+              title="Ubah Nama"
+              className="p-1.5 rounded-md text-slate-400 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-600 hover:text-slate-600 dark:hover:text-slate-300"
+              onClick={(e) => {
+                e.stopPropagation();
+                setEditingSessionId(session.id);
+                setEditingName(session.name);
+              }}
+            >
+              <FilePenLine size={14} />
+            </button>
+            <button
+              title="Hapus Sesi"
+              className="p-1.5 rounded-md text-slate-400 dark:text-slate-500 hover:bg-red-100 dark:hover:bg-red-700/50 hover:text-red-600 dark:hover:text-red-400"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDeleteSession(session.id);
+              }}
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        </div>
+        <div className="text-xs text-slate-400 dark:text-slate-500 mt-1 self-start">
+          {formatDistanceToNow(new Date(session.createdAt), {
+            addSuffix: true,
+            locale: id,
+          })}
+        </div>
+      </div>
+    );
+  }
 }

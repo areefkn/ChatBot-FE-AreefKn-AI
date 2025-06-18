@@ -26,6 +26,8 @@ interface ChatSession {
   messages: ChatMessage[];
   pinnedMessageIds?: string[]; // ID pesan yang disematkan (opsional)
   createdAt: Date;
+  isPinned?: boolean; // Untuk status pin sesi di sidebar
+  lastMessagePreview?: string; // Untuk pratinjau pesan di sidebar
 }
 
 export default function ChatPage() {
@@ -57,13 +59,26 @@ export default function ChatPage() {
         (session: any) => ({
           ...session,
           createdAt: new Date(session.createdAt),
+          isPinned: session.isPinned || false, // Tambahkan default value
           messages: session.messages.map((msg: any) => ({
             ...msg,
             timestamp: new Date(msg.timestamp),
           })),
+          // Buat lastMessagePreview saat memuat
+          lastMessagePreview:
+            session.messages.length > 0
+              ? session.messages[session.messages.length - 1].text.substring(
+                  0,
+                  40
+                ) +
+                (session.messages[session.messages.length - 1].text.length > 40
+                  ? "..."
+                  : "")
+              : "Belum ada pesan",
         })
       );
       setSessions(parsedSessions);
+
       if (parsedSessions.length > 0) {
         const lastActiveSessionId = localStorage.getItem(
           "lastActiveSessionId_areefkn_v2"
@@ -104,6 +119,19 @@ export default function ChatPage() {
       ?.map((pinId) => currentChatHistory.find((msg) => msg.id === pinId))
       .filter(Boolean) as ChatMessage[]) || [];
 
+  // Menyiapkan data sesi untuk Sidebar dengan properti yang dibutuhkan
+  const sessionsForSidebar = sessions.map((session) => ({
+    id: session.id,
+    name: session.name,
+    createdAt: session.createdAt,
+    isPinned: session.isPinned || false,
+    lastMessagePreview:
+      session.lastMessagePreview ||
+      (session.messages.length > 0
+        ? session.messages[session.messages.length - 1].text.substring(0, 40) +
+          "..."
+        : "Belum ada pesan"),
+  }));
   return (
     <div className="flex h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100">
       <ChatSidebar
@@ -113,7 +141,8 @@ export default function ChatPage() {
         onNewChat={createNewSession}
         onSelectSession={setActiveSessionId}
         onDeleteSession={openDeleteConfirmationModal}
-        onRenameSession={handleRenameSession} // Add this line
+        onRenameSession={handleRenameSession}
+        onTogglePin={handleTogglePinSession} // Tambahkan prop ini
       />
 
       {/* Main Content */}
@@ -181,12 +210,25 @@ export default function ChatPage() {
     setSessions((prevSessions) =>
       prevSessions.map((session) =>
         session.id === activeSessionId
-          ? { ...session, messages: [...session.messages, newUserMessage] }
+          ? {
+              ...session,
+              messages: [...session.messages, newUserMessage],
+              lastMessagePreview:
+                newUserMessage.text.substring(0, 40) +
+                (newUserMessage.text.length > 40 ? "..." : ""), // Update preview
+            }
           : session
       )
     );
     setMessage("");
     setIsSending(true);
+    // Scroll ke bawah setelah pesan pengguna ditambahkan
+    requestAnimationFrame(() => {
+      chatContainerRef.current?.scrollTo(
+        0,
+        chatContainerRef.current.scrollHeight
+      );
+    });
 
     // Mengambil beberapa pesan terakhir dari sesi aktif untuk konteks
     // Anda bisa menyesuaikan jumlah pesan yang dikirim untuk konteks
@@ -221,7 +263,13 @@ export default function ChatPage() {
       setSessions((prevSessions) =>
         prevSessions.map((session) =>
           session.id === activeSessionId
-            ? { ...session, messages: [...session.messages, aiMessage] }
+            ? {
+                ...session,
+                messages: [...session.messages, aiMessage],
+                lastMessagePreview:
+                  aiMessage.text.substring(0, 40) +
+                  (aiMessage.text.length > 40 ? "..." : ""), // Update preview
+              }
             : session
         )
       );
@@ -240,15 +288,19 @@ export default function ChatPage() {
       setSessions((prevSessions) =>
         prevSessions.map((session) =>
           session.id === activeSessionId
-            ? {
-                ...session,
-                messages: [...session.messages, errorMessage],
-              }
+            ? { ...session, messages: [...session.messages, errorMessage] } // Tidak perlu update preview untuk error message
             : session
         )
       );
     } finally {
       setIsSending(false);
+      // Scroll ke bawah setelah pesan AI diterima atau error
+      requestAnimationFrame(() => {
+        chatContainerRef.current?.scrollTo(
+          0,
+          chatContainerRef.current.scrollHeight
+        );
+      });
     }
   }
 
@@ -259,6 +311,8 @@ export default function ChatPage() {
       name: `Percakapan ${sessions.length + 1}`,
       messages: [],
       createdAt: new Date(),
+      isPinned: false,
+      lastMessagePreview: "Belum ada pesan",
     };
     setSessions((prev) => [...prev, newSession]);
     setActiveSessionId(newSessionId);
@@ -346,5 +400,16 @@ export default function ChatPage() {
         return session;
       })
     );
+  }
+
+  function handleTogglePinSession(sessionId: string) {
+    setSessions((prevSessions) =>
+      prevSessions.map((session) =>
+        session.id === sessionId
+          ? { ...session, isPinned: !session.isPinned }
+          : session
+      )
+    );
+    // localStorage akan otomatis diperbarui oleh useEffect [sessions, activeSessionId]
   }
 }
