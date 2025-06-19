@@ -1,33 +1,26 @@
-// src/app/layout.tsx
-import type { Metadata } from "next";
+// app/layout.tsx
+import "./globals.css";
 import { Inter } from "next/font/google";
-import "./globals.css"; // Pastikan ini diimpor sebelum ThemeProvider
-import { ThemeProvider } from "next-themes";
+import { ThemeProvider } from "@/components/theme-provider";
 
 const inter = Inter({ subsets: ["latin"] });
 
-export const metadata: Metadata = {
-  title: "AreefKn AI", // Or your app's title
-  description: "Chatbot powered by Gemini", // Or your app's description
+export const metadata = {
+  title: "AreefKn AI",
+  description: "Chatbot powered by Gemini",
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="id" suppressHydrationWarning>
-      {/* Pastikan tidak ada spasi atau baris baru antara tag html dan body */}
-      {/* Hapus spasi ekstra dari sini */}
-      {/* suppressHydrationWarning is often recommended with next-themes */}
-      <body className={inter.className}>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system" // Or "light" or "dark"
-          enableSystem
-          disableTransitionOnChange
-        >
+      <body
+        className={`${inter.className} bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100`}
+      >
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           {children}
         </ThemeProvider>
       </body>
