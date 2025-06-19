@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import axios, { AxiosError } from "axios";
 
 // URL backend kustom Anda, diambil dari environment variable server-side
-const ENV_VAR_NAME_FOR_BACKEND_URL = "CUSTOM_BACKEND_CHAT_ENDPOINT";
+const ENV_VAR_NAME_FOR_BACKEND_URL = "NEXT_PUBLIC_CHAT_BACKEND_BASE_URL";
 
 export async function POST(req: NextRequest) {
   const customBackendUrl = process.env[ENV_VAR_NAME_FOR_BACKEND_URL];

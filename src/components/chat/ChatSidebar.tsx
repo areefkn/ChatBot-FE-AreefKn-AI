@@ -1,6 +1,6 @@
 // src/components/chat/ChatSidebar.tsx
 "use client";
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { id } from "date-fns/locale"; // Untuk format bahasa Indonesia
 import {
@@ -15,7 +15,8 @@ import {
   MoreVertical, // Ikon untuk menu konteks
 } from "lucide-react";
 
-interface ChatSession {
+export interface ChatSession {
+  // Tambahkan 'export'
   id: string;
   name: string;
   createdAt: Date;
@@ -84,14 +85,20 @@ const ChatSidebarComponent = React.forwardRef<HTMLElement, ChatSidebarProps>(
       };
     }, [contextMenuSessionId]);
 
-    const pinnedSessions = sessions.filter((session) => session.isPinned);
-    const unpinnedSessions = sessions.filter((session) => !session.isPinned);
-
-    const sortedUnpinnedSessions = unpinnedSessions.sort(
-      (a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)
+    const sortedPinnedSessions = useMemo(
+      () =>
+        sessions
+          .filter((session) => session.isPinned)
+          .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)),
+      [sessions]
     );
-    const sortedPinnedSessions = pinnedSessions.sort(
-      (a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)
+
+    const sortedUnpinnedSessions = useMemo(
+      () =>
+        sessions
+          .filter((session) => !session.isPinned)
+          .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)),
+      [sessions]
     );
 
     return (
@@ -283,13 +290,17 @@ const ChatSidebarComponent = React.forwardRef<HTMLElement, ChatSidebarProps>(
                 <div
                   ref={contextMenuRef}
                   className="absolute right-0 mt-2 w-40 bg-white dark:bg-slate-700 rounded-md shadow-lg z-20 border border-slate-200 dark:border-slate-600"
-                  onClick={(e) => e.stopPropagation()} // Mencegah penutupan menu saat diklik di dalam menu
+                  onClick={(e) => e.stopPropagation()}
                 >
                   <ul className="py-1">
-                    {renderActionButtons(session, true).map((button, index) => (
-                      <li key={index} className="px-1">
+                    {renderActionButtons(session, true).map((button) => (
+                      <li key={button.key} className="px-1">
+                        {" "}
+                        {/* Menggunakan button.key */}
                         {React.cloneElement(button, {
-                          className: `${button.props.className} w-full justify-start text-sm px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-md`,
+                          className: `${
+                            button.props.className || ""
+                          } w-full justify-start text-sm px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-md`,
                           onClick: (e: React.MouseEvent<HTMLButtonElement>) => {
                             button.props.onClick(e);
                             setContextMenuSessionId(null); // Tutup menu setelah aksi
