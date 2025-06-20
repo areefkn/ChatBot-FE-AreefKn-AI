@@ -21,7 +21,7 @@ export interface ChatSession {
   lastMessagePreview?: string;
 }
 
-const LOCAL_STORAGE_SESSIONS_KEY = "chatSessions_areefkn_v2";
+const LOCAL_STORAGE_SESSIONS_KEY = "NEXT_PUBLIC_CHAT_BACKEND_BASE_URL";
 const LAST_MESSAGE_PREVIEW_LENGTH = 40;
 const MAX_PINNED_MESSAGES = 3;
 

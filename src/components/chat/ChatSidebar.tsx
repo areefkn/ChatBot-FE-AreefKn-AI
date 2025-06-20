@@ -104,14 +104,14 @@ const ChatSidebarComponent = React.forwardRef<HTMLElement, ChatSidebarProps>(
     return (
       <aside
         ref={ref} // Gunakan ref yang diteruskan
-        className={`fixed inset-y-0 left-0 z-30 bg-slate-100 dark:bg-slate-800 shadow-lg transition-transform duration-300 ease-in-out 
+        className={`fixed inset-y-0 left-0 z-30 dark:bg-slate-800 shadow-xl transition-transform duration-300 ease-in-out 
                  md:relative md:translate-x-0 md:w-80 md:p-4 md:flex-shrink-0 
                  ${
                    isOpen
                      ? "translate-x-0 w-full p-4"
                      : "-translate-x-full w-full p-4 md:w-0 md:p-0"
                  } 
-                 overflow-hidden flex flex-col`}
+                 overflow-hidden flex flex-col`} // Shadow sedikit lebih tebal
         onClick={(e) => {
           // console.log("Aside (ChatSidebar) clicked, stopping propagation."); // Untuk debugging jika perlu
           e.stopPropagation();
@@ -147,16 +147,18 @@ const ChatSidebarComponent = React.forwardRef<HTMLElement, ChatSidebarProps>(
             {/* Pinned Sessions */}
             {sortedPinnedSessions.length > 0 && (
               <div className="mb-3">
-                <div className="sticky top-0 bg-white dark:bg-slate-800 z-10 px-1 py-1.5 mb-1">
-                  <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center">
+                <div className="sticky top-0 bg-slate-100 dark:bg-slate-700/50 z-10 px-2 py-2 mb-1 rounded-t-md">
+                  <h3 className="text-xs font-bold tracking-wider uppercase text-cyan-600 dark:text-cyan-400 flex items-center">
                     <Pin
                       size={12}
-                      className="mr-1.5 text-cyan-600 dark:text-cyan-400"
+                      className="mr-1.5" // Warna sudah diatur di parent
                     />
                     TERSEMAT
                   </h3>
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 bg-slate-50 dark:bg-slate-700 p-2 rounded-b-md">
+                  {" "}
+                  {/* Konsistenkan BG dengan unpinned */}
                   {sortedPinnedSessions.map(renderSessionItem)}
                 </div>
               </div>
@@ -165,17 +167,27 @@ const ChatSidebarComponent = React.forwardRef<HTMLElement, ChatSidebarProps>(
             {/* Unpinned Sessions */}
             {sortedUnpinnedSessions.length > 0 && (
               <div className="mb-3">
+                {" "}
+                {/* Pastikan div ini TIDAK memiliki bg-gray-50, p-2, rounded-lg */}
                 <div
-                  className={`sticky top-0 rounded-2xl bg-white dark:bg-slate-800 z-10 px-1 py-1.5 mb-1 ${
+                  className={`sticky top-0 rounded-t-md bg-slate-100 dark:bg-slate-700/50 z-10 px-2 py-2 mb-1 ${
+                    /* Disesuaikan dengan header pinned */
                     sortedPinnedSessions.length > 0 ? "pt-2" : ""
                   }`}
                 >
-                  <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center">
-                    <MessageSquare size={12} className="mr-1.5 " />
+                  <h3 className="text-xs font-bold tracking-wider uppercase text-indigo-600 dark:text-indigo-400 flex items-center">
+                    {" "}
+                    {/* Warna berbeda untuk unpinned header */}
+                    <MessageSquare size={12} className="mr-1.5" />
                     PERCAKAPAN
                   </h3>
                 </div>
-                <div className="space-y-1.5">
+                {/* Tambahkan kelas background di sini untuk area daftar sesi TIDAK TERSEMAT */}
+                {/* Contoh: bg-gray-50 untuk light mode, dark:bg-slate-600 untuk dark mode */}
+                <div className="space-y-1.5 bg-slate-50 dark:bg-slate-700 p-2 rounded-b-md">
+                  {" "}
+                  {/* BG konsisten, padding dan radius diterapkan di sini */}{" "}
+                  {/* BG, padding, dan radius diterapkan di sini */}
                   {sortedUnpinnedSessions.map(renderSessionItem)}
                 </div>
               </div>
@@ -243,10 +255,11 @@ const ChatSidebarComponent = React.forwardRef<HTMLElement, ChatSidebarProps>(
       return (
         <div
           key={session.id}
-          className={`group p-2.5 rounded-lg cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/60 flex flex-col transition-colors ${
+          className={`group p-2.5 rounded-lg cursor-pointer flex flex-col transition-all duration-200 ease-in-out ${
+            /* Tambah transisi all */
             isActive
-              ? "bg-gradient-to-r from-cyan-50 via-violet-50 to-indigo-50 dark:from-cyan-900/30 dark:via-violet-900/30 dark:to-indigo-900/30 border-l-4 border-cyan-500 dark:border-cyan-400"
-              : "border-l-4 border-transparent"
+              ? "bg-gradient-to-r from-cyan-100 via-sky-100 to-indigo-100 dark:from-cyan-700/50 dark:via-sky-700/50 dark:to-indigo-700/50 border-l-4 border-cyan-500 dark:border-cyan-400 shadow-lg ring-1 ring-cyan-500/20 dark:ring-cyan-400/20"
+              : "bg-white dark:bg-slate-800 border-l-4 border-transparent hover:bg-slate-200/70 dark:hover:bg-slate-600/50 hover:border-slate-300 dark:hover:border-slate-500"
           }`}
           onClick={() => onSelectSession(session.id)}
         >
@@ -255,15 +268,15 @@ const ChatSidebarComponent = React.forwardRef<HTMLElement, ChatSidebarProps>(
               {" "}
               {/* min-w-0 untuk truncate */}
               <h3
-                className={`font-medium truncate text-sm ${
+                className={`truncate text-sm ${
                   isActive
-                    ? "text-cyan-700 dark:text-cyan-200"
-                    : "text-slate-800 dark:text-slate-100"
+                    ? "font-semibold text-cyan-700 dark:text-cyan-300"
+                    : "font-medium text-slate-700 dark:text-slate-200 group-hover:text-slate-800 dark:group-hover:text-slate-100"
                 }`}
               >
                 {session.name}
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+              <p className="text-xs text-slate-500 dark:text-slate-400 truncate group-hover:text-slate-600 dark:group-hover:text-slate-300">
                 {previewText}
               </p>
             </div>
@@ -297,7 +310,8 @@ const ChatSidebarComponent = React.forwardRef<HTMLElement, ChatSidebarProps>(
                       <li key={button.key} className="px-1">
                         {" "}
                         {/* Menggunakan button.key */}
-                        {React.cloneElement(button, {
+                        {React.cloneElement(button as React.ReactElement<any>, {
+                          // Type assertion
                           className: `${
                             button.props.className || ""
                           } w-full justify-start text-sm px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-md`,
@@ -325,7 +339,10 @@ const ChatSidebarComponent = React.forwardRef<HTMLElement, ChatSidebarProps>(
 
     // Fungsi helper untuk merender tombol aksi, agar tidak duplikasi kode
     function renderActionButtons(session: ChatSession, isContextMenu: boolean) {
-      const commonButtonClass = isContextMenu ? "" : "p-1.5 rounded-md";
+      const commonButtonClass = isContextMenu
+        ? "flex items-center" // Untuk menu konteks, pastikan ikon dan teks sejajar
+        : "p-1.5 rounded-md";
+
       const iconSize = isContextMenu ? 16 : 14;
 
       return [
@@ -334,9 +351,11 @@ const ChatSidebarComponent = React.forwardRef<HTMLElement, ChatSidebarProps>(
           title={session.isPinned ? "Lepas Sematan" : "Sematkan Sesi"}
           className={`${commonButtonClass} ${
             session.isPinned
-              ? "text-cyan-500 dark:text-cyan-400"
-              : "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
-          } ${!isContextMenu && "hover:bg-slate-200 dark:hover:bg-slate-600"}`}
+              ? "text-cyan-600 dark:text-cyan-400" // Warna pin lebih kuat
+              : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+          } ${
+            !isContextMenu && "hover:bg-slate-200/70 dark:hover:bg-slate-600/70"
+          }`}
           onClick={(e) => {
             e.stopPropagation();
             onTogglePin(session.id);
@@ -348,7 +367,7 @@ const ChatSidebarComponent = React.forwardRef<HTMLElement, ChatSidebarProps>(
             <Pin size={iconSize} />
           )}
           {isContextMenu && (
-            <span className="ml-2">
+            <span className="ml-2 text-slate-700 dark:text-slate-200">
               {session.isPinned ? "Lepas Sematan" : "Sematkan"}
             </span>
           )}
@@ -356,8 +375,8 @@ const ChatSidebarComponent = React.forwardRef<HTMLElement, ChatSidebarProps>(
         <button
           key="rename"
           title="Ubah Nama"
-          className={`${commonButtonClass} text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 ${
-            !isContextMenu && "hover:bg-slate-200 dark:hover:bg-slate-600"
+          className={`${commonButtonClass} text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 ${
+            !isContextMenu && "hover:bg-slate-200/70 dark:hover:bg-slate-600/70"
           }`}
           onClick={(e) => {
             e.stopPropagation();
@@ -366,13 +385,18 @@ const ChatSidebarComponent = React.forwardRef<HTMLElement, ChatSidebarProps>(
           }}
         >
           <FilePenLine size={iconSize} />
-          {isContextMenu && <span className="ml-2">Ubah Nama</span>}
+          {isContextMenu && (
+            <span className="ml-2 text-slate-700 dark:text-slate-200">
+              Ubah Nama
+            </span>
+          )}
         </button>,
         <button
           key="delete"
           title="Hapus Sesi"
-          className={`${commonButtonClass} text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 ${
-            !isContextMenu && "hover:bg-red-100 dark:hover:bg-red-700/50"
+          className={`${commonButtonClass} text-slate-500 dark:text-slate-400 hover:text-red-500 dark:hover:text-red-400 ${
+            // Warna hover lebih jelas
+            !isContextMenu && "hover:bg-red-100/70 dark:hover:bg-red-700/40"
           }`}
           onClick={(e) => {
             e.stopPropagation();
@@ -380,7 +404,11 @@ const ChatSidebarComponent = React.forwardRef<HTMLElement, ChatSidebarProps>(
           }}
         >
           <Trash2 size={iconSize} />
-          {isContextMenu && <span className="ml-2">Hapus</span>}
+          {isContextMenu && (
+            <span className="ml-2 text-slate-700 dark:text-slate-200">
+              Hapus
+            </span>
+          )}
         </button>,
       ];
     }
